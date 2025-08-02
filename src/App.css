@@ -1,0 +1,56 @@
+.header-top {
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    height: 125px;
+    align-items: center;
+
+}
+
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background:
+            radial-gradient(circle at center, rgba(255, 255, 255, 0.8) 0%, rgba(240, 240, 240, 0.4) 50%, rgba(220, 220, 220, 0.2) 100%),
+            repeating-linear-gradient(
+                    45deg,
+                    rgba(255, 255, 255, 0.3) 0,
+                    rgba(255, 255, 255, 0.3) 1px,
+                    transparent 1px,
+                    transparent 40px
+            ),
+            repeating-linear-gradient(
+                    -45deg,
+                    rgba(255, 255, 255, 0.3) 0,
+                    rgba(255, 255, 255, 0.3) 1px,
+                    transparent 1px,
+                    transparent 40px
+            ),
+            linear-gradient(to bottom, #EEECE1 0%, #3E4333 100%);
+    background-repeat: repeat;
+    background-blend-mode: normal, normal, normal, lighten;
+}
+
+
+h1 {
+    margin-bottom: 30px;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.box {
+    width: 150px;
+    height: 150px;
+    background-color: #e0e0e0;
+    border: 2px solid #ccc;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
