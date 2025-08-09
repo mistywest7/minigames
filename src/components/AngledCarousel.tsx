@@ -9,11 +9,16 @@ import tungtungtungtungtungtungtungvideo from "../../public/video/v4.mp4"
 const toRad = (deg) => (deg * Math.PI) / 180;
 
 const AngledCarousel = ({
-                            items = [sigmavideoone, skibidivideoone, brrbrrvideoone, tungtungtungtungtungtungtungvideo],
-                            angle = 20, // градусы, поменяй под себя
-                             cardWidth = window.innerWidth,
-                            cardHeight = 600,
-                            spacing = 1.1, // множитель ширины карточки
+                            items = [
+                                { video: sigmavideoone, title: "Sigma Video", text: "This is the first carousel video." },
+                                { video: skibidivideoone, title: "Skibidi Video", text: "Cube Challenge – Take your puzzle-solving skills to the next level with this advanced Rubik’s Cube game. Designed for seasoned cubers and daring beginners alike, it offers complex patterns, time challenges, and mind-bending twists that push your spatial reasoning and memory to the limit. Solve increasingly difficult scrambles, unlock new cube sizes and shapes, and test yourself against the clock—or challenge friends in head-to-head puzzle duels. With sleek animations, customizable cube designs, and an immersive 3D interface, this is more than just a cube… it’s a mental battleground." },
+                                { video: brrbrrvideoone, title: "Brr Brr Video", text: "This is the third carousel video." },
+                                { video: tungtungtungtungtungtungtungvideo, title: "Tung Tung Tung", text: "This is the fourth carousel video." }
+                            ],
+                            angle = 20,
+                            cardWidth = window.innerWidth * 0.55, // немного меньше, чтобы больше помещалось
+                            cardHeight = 520, // ниже, чтобы влезало по высоте
+                            spacing = 1.1,
                         }) => {
     const [currentIndex, setCurrentIndex] = useState(Math.floor(items.length / 2));
     const containerRef = useRef(null);
@@ -45,11 +50,11 @@ const AngledCarousel = ({
         >
             {items.map((item, idx) => {
                 const offset = idx - currentIndex;
-                // КАРУСЕЛЬ ПОД УГЛОМ!
+                const isActive = offset === 0;
                 const xPos = offset * step * Math.cos(rad);
                 const yPos = offset * step * Math.sin(rad);
-                const scale = offset === 0 ? 1 : 0.85;
-                const opacity = offset === 0 ? 1 : 0.5;
+                const scale = isActive ? 1 : 0.85;
+                const opacity = isActive ? 1 : 0.5;
                 const zIndex = 100 - Math.abs(offset);
 
                 return (
@@ -57,21 +62,47 @@ const AngledCarousel = ({
                         key={idx}
                         animate={{x: xPos, y: yPos, scale, opacity, zIndex}}
                         transition={{type: 'spring', stiffness: 300, damping: 30}}
-                        className="absolute rounded-lg shadow-lg cursor-pointer w-full"
+                        className="absolute rounded-lg cursor-pointer flex"
                         onClick={() => setCurrentIndex(idx)}
-                        style={{width: cardWidth, height: cardHeight}}
+                        style={{width: cardWidth + 250, height: cardHeight}} // 240px для текста справа
                     >
+                        {/* Видео */}
                         <video
-                            src={item}
-                            width={cardWidth - 16}
+                            src={item.video}
+                            width={cardWidth - 125}
                             height={cardHeight - 16}
                             autoPlay
                             loop
                             muted
                             playsInline
-                            className="flex items-center justify-center w-full h-full text-lg font-semibold">
-                        </video>
+                            className="flex-shrink-0 rounded-l-lg"
+                        ></video>
 
+                        {/* Правая колонка */}
+                        <div className="w-full p-3 pr-4 flex flex-col justify-center gap-3 rounded-r-lg">
+                            {/* Верхний бокс (заголовок) */}
+                            <motion.div
+                                initial={{opacity: 0, y: -10}}
+                                animate={isActive ? {opacity: 1, y: 0} : {opacity: 0, y: -10}}
+                                transition={{duration: 0.4}}
+                                className="bg-white/90 backdrop-blur rounded-xl shadow-md px-4 py-3"
+                            >
+                                <h2 className="text-lg font-semibold tracking-wide">???</h2>
+                            </motion.div>
+
+                            {/* Нижний бокс (описание) */}
+                            <motion.div
+                                initial={{opacity: 0, y: 10}}
+                                animate={isActive ? {opacity: 1, y: 0} : {opacity: 0, y: 10}}
+                                transition={{duration: 0.4, delay: 0.1}}
+                                className="bg-gray-50/90 backdrop-blur rounded-xl shadow-inner px-4 py-4"
+
+                            >
+                                <p className="text-gray-800 text-sm leading-relaxed">
+                                    {item.text}
+                                </p>
+                            </motion.div>
+                        </div>
                     </motion.div>
                 );
             })}
@@ -80,14 +111,3 @@ const AngledCarousel = ({
 };
 
 export default AngledCarousel;
-
-
-
-
-
-
-
-
-
-
-
