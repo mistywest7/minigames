@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import {X} from 'lucide-react'
 
 import sigmavideoone from "../../public/video/v1.mp4"
 import skibidivideoone from "../../public/video/v2.mp4"
@@ -27,7 +28,7 @@ const AngledCarousel = ({
   cardWidth = 720, // безопасный дефолт без window.* (SSR friendly)
   cardHeight = 520,
   spacing = 1.1,
-  descriptionLimit = 200, // n — порог длины описания, после которого показываем кнопку "more"
+  descriptionLimit = 69, // n — порог длины описания, после которого показываем кнопку "more"
   modalWidth = 800,
   modalHeight = 500,
   moreLabel = 'more',
@@ -140,7 +141,7 @@ const AngledCarousel = ({
                         e.stopPropagation()
                         setOpenIdx(idx)
                       }}
-                      className="text-sm font-medium underline underline-offset-4 hover:opacity-80 focus:outline-none"
+                      className="text-sm font-medium hover:opacity-80 focus:outline-none  bg-white border-none"
                     >
                       {moreLabel}
                     </button>
@@ -187,14 +188,14 @@ const AngledCarousel = ({
                         className="absolute top-3 right-3 rounded-xl px-3 py-1 text-sm hover:bg-gray-100 focus:outline-none"
                         onClick={() => setOpenIdx(null)}
                       >
-                        {closeLabel}
+                        <X />
                       </button>
 
-                      <h3 className="text-xl font-semibold mb-3 pr-16">{item.title ?? 'Details'}</h3>
-                      <div className="h-[calc(100%-4.5rem)] overflow-auto pr-1">
-                        <p className="text-gray-800 text-base leading-relaxed whitespace-pre-wrap">
-                          {item.text}
-                        </p>
+
+                        <h3 className="text-xl font-semibold mb-3 pr-16">{item.title ?? 'Details'}</h3>
+                        <div className="h-[calc(100%-4.5rem)] overflow-auto pr-1">
+                          <p className="text-gray-800 text-base leading-relaxed whitespace-pre-wrap">
+                            {item.text}</p>
                       </div>
                     </motion.div>
                   </motion.div>
