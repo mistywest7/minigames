@@ -1,9 +1,8 @@
 import './App.css'
-import AngledCarousel from './components/AngledCarousel.tsx';
 import {Route, Routes} from 'react-router-dom';
-import Header from "./components/Header.tsx";
 import NotFound from "./components/NotFound.tsx";
 import {useEffect, useState} from "react";
+import Homepage from "./components/Homepage.tsx";
 
 
 function App() {
@@ -35,11 +34,10 @@ function App() {
 
     return (
         <>
-            <Header/>
 
             <Routes>
                 <Route path="*" element={<NotFound/>}/>
-                <Route path="/" element={<AngledCarousel/>}/>
+                <Route path="/" element={<Homepage/>}/>
 
 
             </Routes>
