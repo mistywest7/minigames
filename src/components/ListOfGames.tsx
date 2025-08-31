@@ -14,15 +14,34 @@ const games: Game[] = [
 
 const GameList: React.FC = () => {
     return (
-        <div>
-            <ul className={"container"}>
+        <div className="min-h-screen p-8 flex items-center justify-center">
+            <ul className="grid gap-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 max-w-5xl w-full">
                 {games.map((game) => (
-                    <li key={game.id} className={"box"}>
-                        <strong>{game.name}</strong> - {game.genre}
+                    <li
+                        key={game.id}
+                        className="relative rounded-2xl p-6
+              bg-blue-300/20 backdrop-blur-sm
+               border border-blue-200/30
+             shadow-lg hover:shadow-xl
+             transition hover:scale-[1.02]"
+                    >
+                        <strong className="block text-xl font-semibold text-white">
+                            {game.name}
+                        </strong>
+                        <span
+                            className="mt-3 inline-block text-sm px-3 py-1 rounded-full
+               bg-blue-300/20 backdrop-blur-sm
+               border border-blue-200/30
+               text-blue-100"
+                        >
+    {game.genre}
+  </span>
                     </li>
+
                 ))}
             </ul>
         </div>
+
     );
 };
 
