@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import './CubeChallenge.css';
 
+
 type Coordinate = -1 | 0 | 1;
 type Axis = 'x' | 'y' | 'z';
 type FaceKey = 'U' | 'D' | 'F' | 'B' | 'R' | 'L';
@@ -377,16 +378,19 @@ const CubeChallenge: React.FC = () => {
 
     const reset = useCallback(() => {
         setCubeState(createInitialCubeState());
+
     }, []);
 
     return (
         <section className="cube-game">
             <header className="cube-game__header">
                 <h3 className="cube-game__title">Cube Challenge</h3>
+
                 <p className="cube-game__subtitle">
                     Solve a full 3×3 cube with authentic face turns. Drag to inspect and use the notation buttons to manipulate each
                     layer.
                 </p>
+
             </header>
 
             <div
@@ -402,12 +406,14 @@ const CubeChallenge: React.FC = () => {
             >
                 <div className="cube-game__scene">
                     <div className="cube-game__cube" style={rotationStyle}>
+
                         <CubeFace className="cube-game__face cube-game__face--front" colors={faceColors.front} label="Front" />
                         <CubeFace className="cube-game__face cube-game__face--back" colors={faceColors.back} label="Back" />
                         <CubeFace className="cube-game__face cube-game__face--left" colors={faceColors.left} label="Left" />
                         <CubeFace className="cube-game__face cube-game__face--right" colors={faceColors.right} label="Right" />
                         <CubeFace className="cube-game__face cube-game__face--top" colors={faceColors.top} label="Top" />
                         <CubeFace className="cube-game__face cube-game__face--bottom" colors={faceColors.bottom} label="Bottom" />
+
                     </div>
                 </div>
             </div>
@@ -452,5 +458,7 @@ const CubeChallenge: React.FC = () => {
         </section>
     );
 };
+
+
 
 export default CubeChallenge;
