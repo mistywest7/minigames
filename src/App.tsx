@@ -3,6 +3,7 @@ import {Route, Routes} from 'react-router-dom';
 import NotFound from "./components/NotFound.tsx";
 import {useEffect, useState} from "react";
 import Homepage from "./components/Homepage.tsx";
+import RubiksCubeGame from "./games/RubiksCubeGame.tsx";
 
 
 function App() {
@@ -38,6 +39,7 @@ function App() {
             <Routes>
                 <Route path="*" element={<NotFound/>}/>
                 <Route path="/" element={<Homepage/>}/>
+                <Route path={"/games/rubiks"} element={<RubiksCubeGame/>}/>
 
 
             </Routes>
