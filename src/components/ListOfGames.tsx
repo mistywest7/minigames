@@ -26,7 +26,7 @@ const games: GameDefinition[] = [
         id: 'cube-challenge',
         name: 'Cube Challenge',
         genre: '3D Puzzle',
-        description: 'Tumble a colourful 3D cube, practise finger tricks with the keyboard or shake things up with a scramble.',
+        description: 'Turn every face of a full 3×3 cube, scramble it, and use official notation buttons to work toward a solve.',
         playable: true,
         component: CubeChallenge,
     },

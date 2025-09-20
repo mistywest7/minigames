@@ -95,13 +95,78 @@
     text-align: center;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+
+    gap: 1rem;
+}
+
+.cube-game__controls {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+.cube-game__move-groups {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.9rem;
+}
+
+.cube-game__move-group {
+    background: rgba(255, 255, 255, 0.82);
+    border-radius: 16px;
+    padding: 0.85rem;
+    box-shadow: 0 12px 24px rgba(15, 18, 25, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.cube-game__move-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgba(20, 20, 20, 0.65);
+    text-transform: uppercase;
+}
+
+.cube-game__move-buttons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+.cube-game__move-button {
+    border: none;
+    border-radius: 10px;
+    padding: 0.5rem 0.35rem;
+    font-weight: 600;
+    font-size: 0.95rem;
+    background: linear-gradient(135deg, rgba(15, 98, 254, 0.08), rgba(66, 190, 101, 0.08));
+    color: #0b0b0b;
+    cursor: pointer;
+    box-shadow: 0 6px 14px rgba(13, 13, 13, 0.12);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.cube-game__move-button:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(135deg, rgba(15, 98, 254, 0.18), rgba(66, 190, 101, 0.18));
+    box-shadow: 0 12px 20px rgba(15, 18, 25, 0.16);
+}
+
+.cube-game__move-button:active {
+    transform: translateY(0);
+    box-shadow: 0 6px 14px rgba(15, 18, 25, 0.18);
+
 }
 
 .cube-game__buttons {
     display: flex;
     justify-content: center;
     gap: 0.75rem;
+    flex-wrap: wrap;
+
 }
 
 .cube-game__button {
@@ -150,6 +215,17 @@
     .cube-game {
         gap: 1.25rem;
     }
+
+
+    .cube-game__move-groups {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 0.7rem;
+    }
+
+    .cube-game__move-button {
+        font-size: 0.9rem;
+    }
+
 
     .cube-game__buttons {
         flex-direction: column;
