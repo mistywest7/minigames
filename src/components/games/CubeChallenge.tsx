@@ -34,6 +34,7 @@ const ROTATION_STEP = 15;
 const DRAG_SENSITIVITY = 0.4;
 const SCRAMBLE_LENGTH = 25;
 const MOVE_DRAG_THRESHOLD = 28;
+const HANDLE_VISUAL_LIMIT = 36;
 
 const FACE_COLORS: Record<FaceKey, string> = {
     U: '#ffffff',
@@ -133,28 +134,13 @@ const MOVE_SPECS: Record<BaseMove, MoveSpec> = {
     L: { axis: 'x', layer: -1, clockwiseDirection: 1 },
 };
 
-const FACE_MOVES: Record<FaceKey, [Move, Move, Move]> = {
-    U: ['U', "U'", 'U2'],
-    D: ['D', "D'", 'D2'],
-    F: ['F', "F'", 'F2'],
-    B: ['B', "B'", 'B2'],
-    R: ['R', "R'", 'R2'],
-    L: ['L', "L'", 'L2'],
-};
-
-interface FaceRenderConfig {
-    face: FaceKey;
-    className: string;
-    label: string;
-}
-
-const FACE_RENDER_CONFIG: ReadonlyArray<FaceRenderConfig> = [
-    { face: 'F', className: 'cube-game__face cube-game__face--front', label: 'Front' },
-    { face: 'B', className: 'cube-game__face cube-game__face--back', label: 'Back' },
-    { face: 'L', className: 'cube-game__face cube-game__face--left', label: 'Left' },
-    { face: 'R', className: 'cube-game__face cube-game__face--right', label: 'Right' },
-    { face: 'U', className: 'cube-game__face cube-game__face--top', label: 'Top' },
-    { face: 'D', className: 'cube-game__face cube-game__face--bottom', label: 'Bottom' },
+const MOVE_GROUPS: Array<{ face: BaseMove; moves: [Move, Move, Move] }> = [
+    { face: 'U', moves: ['U', "U'", 'U2'] },
+    { face: 'D', moves: ['D', "D'", 'D2'] },
+    { face: 'F', moves: ['F', "F'", 'F2'] },
+    { face: 'B', moves: ['B', "B'", 'B2'] },
+    { face: 'R', moves: ['R', "R'", 'R2'] },
+    { face: 'L', moves: ['L', "L'", 'L2'] },
 ];
 
 const normalizeCoordinate = (value: number): Coordinate => {
@@ -339,6 +325,193 @@ const CubeFace: React.FC<CubeFaceProps> = ({
         ))}
     </div>
 );
+
+interface DraggableMoveControlProps {
+    face: BaseMove;
+    moves: [Move, Move, Move];
+    onMove: (move: Move) => void;
+}
+
+const DraggableMoveControl: React.FC<DraggableMoveControlProps> = ({ face, moves, onMove }) => {
+    const [clockwise, counterClockwise, doubleTurn] = moves;
+    const [clockwiseLabel, counterClockwiseLabel, doubleLabel] = useMemo(
+        () => moves.map((move) => formatMoveLabel(move)),
+        [moves],
+    );
+    const descriptionId = useMemo(() => `cube-move-${face.toLowerCase()}-intent`, [face]);
+    const ariaLabel = useMemo(
+        () =>
+            `Drag to twist the ${face} face. Drag right for ${clockwiseLabel}, left for ${counterClockwiseLabel}, and vertically for ${doubleLabel}.`,
+        [clockwiseLabel, counterClockwiseLabel, doubleLabel, face],
+    );
+
+    const trackRef = useRef<HTMLDivElement | null>(null);
+    const pointerState = useRef<PointerDragState | null>(null);
+    const [intent, setIntent] = useState<DragIntent>(null);
+    const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+
+    const clampOffset = useCallback((value: number) => {
+        if (value > HANDLE_VISUAL_LIMIT) {
+            return HANDLE_VISUAL_LIMIT;
+        }
+        if (value < -HANDLE_VISUAL_LIMIT) {
+            return -HANDLE_VISUAL_LIMIT;
+        }
+        return value;
+    }, []);
+
+    const finishDrag = useCallback(
+        (pointerId: number, commit: boolean) => {
+            const state = pointerState.current;
+            if (!state || state.pointerId !== pointerId) {
+                return;
+            }
+
+            if (commit && state.activeMove) {
+                onMove(state.activeMove);
+            }
+
+            pointerState.current = null;
+            setIntent(null);
+            setDragOffset({ x: 0, y: 0 });
+            setIsDragging(false);
+
+            if (trackRef.current?.hasPointerCapture(pointerId)) {
+                trackRef.current.releasePointerCapture(pointerId);
+            }
+        },
+        [onMove],
+    );
+
+    const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        pointerState.current = {
+            pointerId: event.pointerId,
+            originX: event.clientX,
+            originY: event.clientY,
+            activeMove: null,
+        };
+        setIsDragging(true);
+        setIntent(null);
+        setDragOffset({ x: 0, y: 0 });
+        trackRef.current?.setPointerCapture(event.pointerId);
+    }, []);
+
+    const handlePointerMove = useCallback(
+        (event: React.PointerEvent<HTMLDivElement>) => {
+            const state = pointerState.current;
+            if (!state || state.pointerId !== event.pointerId) {
+                return;
+            }
+
+            const deltaX = event.clientX - state.originX;
+            const deltaY = event.clientY - state.originY;
+
+            const nextOffset = {
+                x: clampOffset(deltaX),
+                y: clampOffset(deltaY),
+            };
+            setDragOffset((prev) =>
+                prev.x === nextOffset.x && prev.y === nextOffset.y ? prev : nextOffset,
+            );
+
+            const absX = Math.abs(deltaX);
+            const absY = Math.abs(deltaY);
+            let nextIntent: DragIntent = null;
+
+            if (absX >= MOVE_DRAG_THRESHOLD || absY >= MOVE_DRAG_THRESHOLD) {
+                if (absX > absY) {
+                    nextIntent = deltaX > 0 ? 'cw' : 'ccw';
+                } else {
+                    nextIntent = 'double';
+                }
+            }
+
+            setIntent((prev) => (prev === nextIntent ? prev : nextIntent));
+
+            if (nextIntent === 'cw') {
+                state.activeMove = clockwise;
+            } else if (nextIntent === 'ccw') {
+                state.activeMove = counterClockwise;
+            } else if (nextIntent === 'double') {
+                state.activeMove = doubleTurn;
+            } else {
+                state.activeMove = null;
+            }
+        },
+        [clampOffset, clockwise, counterClockwise, doubleTurn],
+    );
+
+    const handlePointerUp = useCallback(
+        (event: React.PointerEvent<HTMLDivElement>) => {
+            finishDrag(event.pointerId, true);
+        },
+        [finishDrag],
+    );
+
+    const handlePointerCancel = useCallback(
+        (event: React.PointerEvent<HTMLDivElement>) => {
+            finishDrag(event.pointerId, false);
+        },
+        [finishDrag],
+    );
+
+    const intentDescription = useMemo(() => {
+        switch (intent) {
+            case 'cw':
+                return `${face} clockwise (${clockwiseLabel})`;
+            case 'ccw':
+                return `${face} counter-clockwise (${counterClockwiseLabel})`;
+            case 'double':
+                return `${face} double turn (${doubleLabel})`;
+            default:
+                return `Drag horizontally for ${clockwiseLabel}/${counterClockwiseLabel} or vertically for ${doubleLabel}.`;
+        }
+    }, [clockwiseLabel, counterClockwiseLabel, doubleLabel, face, intent]);
+
+    const handleText = intent
+        ? intent === 'cw'
+            ? clockwiseLabel
+            : intent === 'ccw'
+              ? counterClockwiseLabel
+              : doubleLabel
+        : 'Drag';
+
+    const controlClassName = [
+        'cube-game__move-control',
+        isDragging ? 'cube-game__move-control--dragging' : null,
+        intent ? `cube-game__move-control--${intent}` : null,
+    ]
+        .filter((value): value is string => Boolean(value))
+        .join(' ');
+
+    return (
+        <div className={controlClassName}>
+            <div
+                ref={trackRef}
+                className="cube-game__move-track"
+                tabIndex={0}
+                aria-label={ariaLabel}
+                aria-describedby={descriptionId}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerCancel}
+            >
+                <span className="cube-game__move-label cube-game__move-label--left">{counterClockwiseLabel}</span>
+                <span className="cube-game__move-label cube-game__move-label--right">{clockwiseLabel}</span>
+                <span className="cube-game__move-label cube-game__move-label--top">{doubleLabel}</span>
+                <div className="cube-game__move-handle" style={{ transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)` }}>
+                    {handleText}
+                </div>
+            </div>
+            <p id={descriptionId} className="cube-game__move-intent" aria-live="polite">
+                {intentDescription}
+            </p>
+        </div>
+    );
+};
 
 const CubeChallenge: React.FC = () => {
     const [rotation, setRotation] = useState<Rotation>(() => ({ x: -30, y: 35 }));
@@ -552,7 +725,7 @@ const CubeChallenge: React.FC = () => {
                 <h3 className="cube-game__title">Cube Challenge</h3>
 
                 <p className="cube-game__subtitle">
-                    Spin the cube to inspect every side and drag directly on any face to twist it. Restore every color to solve the puzzle.
+                    Solve a full 3×3 cube with authentic face turns. Drag to inspect and drag the move pads to twist each layer.
                 </p>
             </header>
 
@@ -617,6 +790,32 @@ const CubeChallenge: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <footer className="cube-game__footer">
+                <div className="cube-game__controls">
+                    <div className="cube-game__move-groups">
+                        {MOVE_GROUPS.map((group) => (
+                            <div key={group.face} className="cube-game__move-group">
+                                <span className="cube-game__move-title">{group.face} face</span>
+                                <DraggableMoveControl face={group.face} moves={group.moves} onMove={handleMove} />
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="cube-game__buttons">
+                        <button type="button" className="cube-game__button" onClick={reset}>
+                            Reset
+                        </button>
+                        <button type="button" className="cube-game__button cube-game__button--primary" onClick={scramble}>
+                            Scramble
+                        </button>
+                    </div>
+                </div>
+                <p className="cube-game__help">
+                    Drag each move pad horizontally for clockwise/counter-clockwise turns or vertically for a double turn. Drag or use
+                    the arrow keys to inspect the cube. <kbd>Home</kbd> resets the view and <kbd>End</kbd> randomizes it.
+                </p>
+            </footer>
         </section>
     );
 };
