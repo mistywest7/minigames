@@ -108,7 +108,7 @@
 
 .cube-game__move-groups {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 0.9rem;
 }
 
@@ -119,7 +119,9 @@
     box-shadow: 0 12px 24px rgba(15, 18, 25, 0.08);
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    align-items: stretch;
+    gap: 0.75rem;
+    text-align: center;
 }
 
 .cube-game__move-title {
@@ -130,35 +132,158 @@
     text-transform: uppercase;
 }
 
-.cube-game__move-buttons {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.45rem;
+.cube-game__move-control {
+    --move-track-background: linear-gradient(145deg, rgba(255, 255, 255, 0.97), rgba(230, 230, 230, 0.92));
+    --move-track-highlight: transparent;
+    --move-track-highlight-opacity: 0;
+    --move-handle-background: linear-gradient(135deg, #ffffff, #f4f4f4);
+    --move-handle-text: #0b0b0b;
+    --move-handle-outline: rgba(15, 98, 254, 0.18);
+    --move-handle-shadow: 0 10px 20px rgba(14, 16, 24, 0.16);
+    --move-handle-shadow-active: 0 16px 28px rgba(14, 16, 24, 0.22);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.55rem;
 }
 
-.cube-game__move-button {
-    border: none;
-    border-radius: 10px;
-    padding: 0.5rem 0.35rem;
+.cube-game__move-control--dragging {
+    --move-handle-shadow: var(--move-handle-shadow-active);
+}
+
+.cube-game__move-control--cw {
+    --move-track-highlight: linear-gradient(90deg, rgba(66, 190, 101, 0.35), rgba(66, 190, 101, 0));
+    --move-track-highlight-opacity: 1;
+    --move-handle-background: linear-gradient(135deg, #42be65, #1e9a53);
+    --move-handle-text: #ffffff;
+    --move-handle-outline: rgba(66, 190, 101, 0.45);
+}
+
+.cube-game__move-control--ccw {
+    --move-track-highlight: linear-gradient(270deg, rgba(15, 98, 254, 0.32), rgba(15, 98, 254, 0));
+    --move-track-highlight-opacity: 1;
+    --move-handle-background: linear-gradient(135deg, #0f62fe, #0b4ed9);
+    --move-handle-text: #ffffff;
+    --move-handle-outline: rgba(15, 98, 254, 0.45);
+}
+
+.cube-game__move-control--double {
+    --move-track-highlight: linear-gradient(180deg, rgba(161, 109, 255, 0.38), rgba(161, 109, 255, 0));
+    --move-track-highlight-opacity: 1;
+    --move-handle-background: linear-gradient(135deg, #a16dff, #7b4fe5);
+    --move-handle-text: #ffffff;
+    --move-handle-outline: rgba(161, 109, 255, 0.45);
+}
+
+.cube-game__move-track {
+    position: relative;
+    width: 100%;
+    min-height: 112px;
+    padding: 1.1rem;
+    border-radius: 18px;
+    background: var(--move-track-background);
+    box-shadow: 0 14px 28px rgba(15, 18, 25, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+    cursor: grab;
+}
+
+.cube-game__move-control--dragging .cube-game__move-track {
+    cursor: grabbing;
+}
+
+.cube-game__move-track::before {
+    content: '';
+    position: absolute;
+    inset: 14px;
+    border-radius: 14px;
+    border: 1px solid rgba(12, 16, 24, 0.12);
+    background:
+        linear-gradient(90deg, rgba(15, 18, 25, 0.08), rgba(15, 18, 25, 0.08)) center/1px 100% no-repeat,
+        linear-gradient(0deg, rgba(15, 18, 25, 0.08), rgba(15, 18, 25, 0.08)) center/100% 1px no-repeat;
+    pointer-events: none;
+}
+
+.cube-game__move-track::after {
+    content: '';
+    position: absolute;
+    inset: 14px;
+    border-radius: 14px;
+    background: var(--move-track-highlight);
+    opacity: var(--move-track-highlight-opacity);
+    transition: opacity 0.18s ease;
+    pointer-events: none;
+}
+
+.cube-game__move-label {
+    position: absolute;
+    font-size: 0.75rem;
     font-weight: 600;
-    font-size: 0.95rem;
-    background: linear-gradient(135deg, rgba(15, 98, 254, 0.08), rgba(66, 190, 101, 0.08));
-    color: #0b0b0b;
-    cursor: pointer;
-    box-shadow: 0 6px 14px rgba(13, 13, 13, 0.12);
-    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+    letter-spacing: 0.04em;
+    color: rgba(20, 20, 20, 0.62);
+    text-transform: uppercase;
+    pointer-events: none;
 }
 
-.cube-game__move-button:hover {
-    transform: translateY(-2px);
-    background: linear-gradient(135deg, rgba(15, 98, 254, 0.18), rgba(66, 190, 101, 0.18));
-    box-shadow: 0 12px 20px rgba(15, 18, 25, 0.16);
+.cube-game__move-label--left {
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: left;
 }
 
-.cube-game__move-button:active {
-    transform: translateY(0);
-    box-shadow: 0 6px 14px rgba(15, 18, 25, 0.18);
+.cube-game__move-label--right {
+    right: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: right;
+}
 
+.cube-game__move-label--top {
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.cube-game__move-handle {
+    position: relative;
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    background: var(--move-handle-background);
+    color: var(--move-handle-text);
+    font-weight: 700;
+    font-size: 0.76rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    display: grid;
+    place-items: center;
+    box-shadow: var(--move-handle-shadow);
+    border: 2px solid var(--move-handle-outline);
+    transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    pointer-events: none;
+    user-select: none;
+}
+
+.cube-game__move-intent {
+    font-size: 0.8rem;
+    color: rgba(30, 30, 30, 0.72);
+    min-height: 1.2em;
+}
+
+.cube-game__move-control--cw .cube-game__move-intent {
+    color: #1f9a54;
+}
+
+.cube-game__move-control--ccw .cube-game__move-intent {
+    color: #0f62fe;
+}
+
+.cube-game__move-control--double .cube-game__move-intent {
+    color: #8458e6;
 }
 
 .cube-game__buttons {
@@ -216,16 +341,29 @@
         gap: 1.25rem;
     }
 
-
     .cube-game__move-groups {
-        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 0.7rem;
     }
 
-    .cube-game__move-button {
-        font-size: 0.9rem;
+    .cube-game__move-track {
+        min-height: 100px;
+        padding: 0.9rem;
     }
 
+    .cube-game__move-label {
+        font-size: 0.68rem;
+    }
+
+    .cube-game__move-handle {
+        width: 52px;
+        height: 52px;
+        font-size: 0.7rem;
+    }
+
+    .cube-game__move-intent {
+        font-size: 0.76rem;
+    }
 
     .cube-game__buttons {
         flex-direction: column;
