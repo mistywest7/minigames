@@ -1,12 +1,20 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import './CubeChallenge.css';
 
-
 type Coordinate = -1 | 0 | 1;
 type Axis = 'x' | 'y' | 'z';
 type FaceKey = 'U' | 'D' | 'F' | 'B' | 'R' | 'L';
 type BaseMove = FaceKey;
 type Move = `${BaseMove}${'' | "'" | '2'}`;
+
+type DragIntent = 'cw' | 'ccw' | 'double' | null;
+
+interface PointerDragState {
+    pointerId: number;
+    originX: number;
+    originY: number;
+    activeMove: Move | null;
+}
 
 interface Rotation {
     x: number;
@@ -25,6 +33,7 @@ interface CubeSticker {
 const ROTATION_STEP = 15;
 const DRAG_SENSITIVITY = 0.4;
 const SCRAMBLE_LENGTH = 25;
+const MOVE_DRAG_THRESHOLD = 28;
 
 const FACE_COLORS: Record<FaceKey, string> = {
     U: '#ffffff',
@@ -124,13 +133,22 @@ const MOVE_SPECS: Record<BaseMove, MoveSpec> = {
     L: { axis: 'x', layer: -1, clockwiseDirection: 1 },
 };
 
-const MOVE_GROUPS: Array<{ face: BaseMove; moves: Move[] }> = [
-    { face: 'U', moves: ['U', "U'", 'U2'] },
-    { face: 'D', moves: ['D', "D'", 'D2'] },
-    { face: 'F', moves: ['F', "F'", 'F2'] },
-    { face: 'B', moves: ['B', "B'", 'B2'] },
-    { face: 'R', moves: ['R', "R'", 'R2'] },
-    { face: 'L', moves: ['L', "L'", 'L2'] },
+const FACE_MOVES: Record<FaceKey, [Move, Move, Move]> = {
+    U: ['U', "U'", 'U2'],
+    D: ['D', "D'", 'D2'],
+    F: ['F', "F'", 'F2'],
+    B: ['B', "B'", 'B2'],
+    R: ['R', "R'", 'R2'],
+    L: ['L', "L'", 'L2'],
+};
+
+const FACE_RENDER_CONFIG = [
+    { face: 'F' as FaceKey, className: 'cube-game__face cube-game__face--front', label: 'Front' },
+    { face: 'B' as FaceKey, className: 'cube-game__face cube-game__face--back', label: 'Back' },
+    { face: 'L' as FaceKey, className: 'cube-game__face cube-game__face--left', label: 'Left' },
+    { face: 'R' as FaceKey, className: 'cube-game__face cube-game__face--right', label: 'Right' },
+    { face: 'U' as FaceKey, className: 'cube-game__face cube-game__face--top', label: 'Top' },
+    { face: 'D' as FaceKey, className: 'cube-game__face cube-game__face--bottom', label: 'Bottom' },
 ];
 
 const normalizeCoordinate = (value: number): Coordinate => {
@@ -269,21 +287,47 @@ const getFaceStickers = (stickers: CubeSticker[], face: FaceKey): string[] => {
     return colors;
 };
 
-const formatMoveLabel = (move: Move): string => move.replace("'", '′');
-
 const scrambleRotation = (): Rotation => ({
     x: Math.random() * 180 - 90,
     y: Math.random() * 360 - 180,
 });
 
 interface CubeFaceProps {
+    face: FaceKey;
     className: string;
     colors: string[];
     label: string;
+    onPointerDown: (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerMove: (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerUp: (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => void;
+    onPointerCancel: (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => void;
+    onKeyDown: (face: FaceKey, event: React.KeyboardEvent<HTMLDivElement>) => void;
 }
 
-const CubeFace: React.FC<CubeFaceProps> = ({ className, colors, label }) => (
-    <div className={className} data-label={label}>
+const CubeFace: React.FC<CubeFaceProps> = ({
+    face,
+    className,
+    colors,
+    label,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp,
+    onPointerCancel,
+    onKeyDown,
+}) => (
+    <div
+        className={className}
+        data-label={label}
+        data-face={face}
+        role="button"
+        tabIndex={0}
+        aria-label={`${label} face`}
+        onPointerDown={(event) => onPointerDown(face, event)}
+        onPointerMove={(event) => onPointerMove(face, event)}
+        onPointerUp={(event) => onPointerUp(face, event)}
+        onPointerCancel={(event) => onPointerCancel(face, event)}
+        onKeyDown={(event) => onKeyDown(face, event)}
+    >
         {colors.map((color, index) => (
             <span key={index} className="cube-game__sticker" style={{ backgroundColor: color }} />
         ))}
@@ -293,21 +337,27 @@ const CubeFace: React.FC<CubeFaceProps> = ({ className, colors, label }) => (
 const CubeChallenge: React.FC = () => {
     const [rotation, setRotation] = useState<Rotation>(() => ({ x: -30, y: 35 }));
     const [cubeState, setCubeState] = useState<CubeSticker[]>(() => createInitialCubeState());
-    const dragOrigin = useRef<{ x: number; y: number } | null>(null);
+    const stageDragOrigin = useRef<{ x: number; y: number } | null>(null);
+    const faceDragState = useRef<(PointerDragState & { face: FaceKey }) | null>(null);
+    const [activeFaceDrag, setActiveFaceDrag] = useState<{ face: FaceKey; intent: DragIntent } | null>(null);
 
-    const handlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-        dragOrigin.current = { x: event.clientX, y: event.clientY };
-        event.currentTarget.setPointerCapture(event.pointerId);
-    }, []);
-
-    const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-        if (!dragOrigin.current) {
+    const handleStagePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if ((event.target as HTMLElement).closest('[data-face]')) {
             return;
         }
 
-        const deltaX = event.clientX - dragOrigin.current.x;
-        const deltaY = event.clientY - dragOrigin.current.y;
-        dragOrigin.current = { x: event.clientX, y: event.clientY };
+        stageDragOrigin.current = { x: event.clientX, y: event.clientY };
+        event.currentTarget.setPointerCapture(event.pointerId);
+    }, []);
+
+    const handleStagePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (!stageDragOrigin.current) {
+            return;
+        }
+
+        const deltaX = event.clientX - stageDragOrigin.current.x;
+        const deltaY = event.clientY - stageDragOrigin.current.y;
+        stageDragOrigin.current = { x: event.clientX, y: event.clientY };
 
         setRotation((prev) => ({
             x: prev.x + deltaY * DRAG_SENSITIVITY,
@@ -315,9 +365,11 @@ const CubeChallenge: React.FC = () => {
         }));
     }, []);
 
-    const handlePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-        dragOrigin.current = null;
-        event.currentTarget.releasePointerCapture(event.pointerId);
+    const handleStagePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        stageDragOrigin.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
     }, []);
 
     const handleKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -357,12 +409,12 @@ const CubeChallenge: React.FC = () => {
 
     const faceColors = useMemo(
         () => ({
-            front: getFaceStickers(cubeState, 'F'),
-            back: getFaceStickers(cubeState, 'B'),
-            left: getFaceStickers(cubeState, 'L'),
-            right: getFaceStickers(cubeState, 'R'),
-            top: getFaceStickers(cubeState, 'U'),
-            bottom: getFaceStickers(cubeState, 'D'),
+            F: getFaceStickers(cubeState, 'F'),
+            B: getFaceStickers(cubeState, 'B'),
+            L: getFaceStickers(cubeState, 'L'),
+            R: getFaceStickers(cubeState, 'R'),
+            U: getFaceStickers(cubeState, 'U'),
+            D: getFaceStickers(cubeState, 'D'),
         }),
         [cubeState],
     );
@@ -378,8 +430,115 @@ const CubeChallenge: React.FC = () => {
 
     const reset = useCallback(() => {
         setCubeState(createInitialCubeState());
-
     }, []);
+
+    const finishFaceDrag = useCallback(
+        (face: FaceKey, target: HTMLDivElement, pointerId: number, commit: boolean) => {
+            const state = faceDragState.current;
+            if (!state || state.pointerId !== pointerId || state.face !== face) {
+                return;
+            }
+
+            if (commit && state.activeMove) {
+                handleMove(state.activeMove);
+            }
+
+            faceDragState.current = null;
+            setActiveFaceDrag(null);
+
+            if (target.hasPointerCapture(pointerId)) {
+                target.releasePointerCapture(pointerId);
+            }
+        },
+        [handleMove],
+    );
+
+    const handleFacePointerDown = useCallback((face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => {
+        event.preventDefault();
+        event.stopPropagation();
+        faceDragState.current = {
+            face,
+            pointerId: event.pointerId,
+            originX: event.clientX,
+            originY: event.clientY,
+            activeMove: null,
+        };
+        setActiveFaceDrag({ face, intent: null });
+        event.currentTarget.setPointerCapture(event.pointerId);
+    }, []);
+
+    const handleFacePointerMove = useCallback(
+        (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => {
+            const state = faceDragState.current;
+            if (!state || state.pointerId !== event.pointerId || state.face !== face) {
+                return;
+            }
+
+            const deltaX = event.clientX - state.originX;
+            const deltaY = event.clientY - state.originY;
+
+            const absX = Math.abs(deltaX);
+            const absY = Math.abs(deltaY);
+            let intent: DragIntent = null;
+
+            if (absX >= MOVE_DRAG_THRESHOLD || absY >= MOVE_DRAG_THRESHOLD) {
+                if (absX > absY) {
+                    intent = deltaX > 0 ? 'cw' : 'ccw';
+                } else {
+                    intent = 'double';
+                }
+            }
+
+            let nextMove: Move | null = null;
+            if (intent === 'cw') {
+                nextMove = FACE_MOVES[face][0];
+            } else if (intent === 'ccw') {
+                nextMove = FACE_MOVES[face][1];
+            } else if (intent === 'double') {
+                nextMove = FACE_MOVES[face][2];
+            }
+
+            state.activeMove = nextMove;
+            setActiveFaceDrag((prev) => {
+                if (prev && prev.face === face && prev.intent === intent) {
+                    return prev;
+                }
+                return { face, intent };
+            });
+        },
+        [],
+    );
+
+    const handleFacePointerUp = useCallback(
+        (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => {
+            event.stopPropagation();
+            finishFaceDrag(face, event.currentTarget, event.pointerId, true);
+        },
+        [finishFaceDrag],
+    );
+
+    const handleFacePointerCancel = useCallback(
+        (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => {
+            finishFaceDrag(face, event.currentTarget, event.pointerId, false);
+        },
+        [finishFaceDrag],
+    );
+
+    const handleFaceKeyDown = useCallback(
+        (face: FaceKey, event: React.KeyboardEvent<HTMLDivElement>) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handleMove(FACE_MOVES[face][0]);
+            } else if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                handleMove(FACE_MOVES[face][1]);
+            } else if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                handleMove(FACE_MOVES[face][2]);
+            }
+        },
+        [handleMove],
+    );
 
     return (
         <section className="cube-game">
@@ -387,10 +546,8 @@ const CubeChallenge: React.FC = () => {
                 <h3 className="cube-game__title">Cube Challenge</h3>
 
                 <p className="cube-game__subtitle">
-                    Solve a full 3×3 cube with authentic face turns. Drag to inspect and use the notation buttons to manipulate each
-                    layer.
+                    Spin the cube to inspect every side and drag directly on any face to twist it. Restore every color to solve the puzzle.
                 </p>
-
             </header>
 
             <div
@@ -398,67 +555,64 @@ const CubeChallenge: React.FC = () => {
                 role="application"
                 aria-label="Interactive 3D cube"
                 tabIndex={0}
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerUp}
+                onPointerDown={handleStagePointerDown}
+                onPointerMove={handleStagePointerMove}
+                onPointerUp={handleStagePointerUp}
+                onPointerCancel={handleStagePointerUp}
                 onKeyDown={handleKeyDown}
             >
+                <div className="cube-game__stage-actions">
+                    <button
+                        type="button"
+                        className="cube-game__stage-button"
+                        onClick={reset}
+                        onPointerDown={(event) => event.stopPropagation()}
+                    >
+                        Reset
+                    </button>
+                    <button
+                        type="button"
+                        className="cube-game__stage-button cube-game__stage-button--primary"
+                        onClick={scramble}
+                        onPointerDown={(event) => event.stopPropagation()}
+                    >
+                        Scramble
+                    </button>
+                </div>
                 <div className="cube-game__scene">
                     <div className="cube-game__cube" style={rotationStyle}>
+                        {FACE_RENDER_CONFIG.map(({ face, className, label }) => {
+                            const isActive = activeFaceDrag?.face === face;
+                            const intent = isActive ? activeFaceDrag?.intent ?? null : null;
+                            const faceClassName = [
+                                className,
+                                'cube-game__face--interactive',
+                                isActive ? 'cube-game__face--dragging' : null,
+                                intent ? `cube-game__face--intent-${intent}` : null,
+                            ]
+                                .filter((value): value is string => Boolean(value))
+                                .join(' ');
 
-                        <CubeFace className="cube-game__face cube-game__face--front" colors={faceColors.front} label="Front" />
-                        <CubeFace className="cube-game__face cube-game__face--back" colors={faceColors.back} label="Back" />
-                        <CubeFace className="cube-game__face cube-game__face--left" colors={faceColors.left} label="Left" />
-                        <CubeFace className="cube-game__face cube-game__face--right" colors={faceColors.right} label="Right" />
-                        <CubeFace className="cube-game__face cube-game__face--top" colors={faceColors.top} label="Top" />
-                        <CubeFace className="cube-game__face cube-game__face--bottom" colors={faceColors.bottom} label="Bottom" />
-
+                            return (
+                                <CubeFace
+                                    key={face}
+                                    face={face}
+                                    className={faceClassName}
+                                    colors={faceColors[face]}
+                                    label={label}
+                                    onPointerDown={handleFacePointerDown}
+                                    onPointerMove={handleFacePointerMove}
+                                    onPointerUp={handleFacePointerUp}
+                                    onPointerCancel={handleFacePointerCancel}
+                                    onKeyDown={handleFaceKeyDown}
+                                />
+                            );
+                        })}
                     </div>
                 </div>
             </div>
-
-            <footer className="cube-game__footer">
-                <div className="cube-game__controls">
-                    <div className="cube-game__move-groups">
-                        {MOVE_GROUPS.map((group) => (
-                            <div key={group.face} className="cube-game__move-group">
-                                <span className="cube-game__move-title">{group.face} face</span>
-                                <div className="cube-game__move-buttons">
-                                    {group.moves.map((move) => (
-                                        <button
-                                            key={move}
-                                            type="button"
-                                            className="cube-game__move-button"
-                                            onClick={() => handleMove(move)}
-                                            aria-label={`Apply ${move} move`}
-                                        >
-                                            {formatMoveLabel(move)}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="cube-game__buttons">
-                        <button type="button" className="cube-game__button" onClick={reset}>
-                            Reset
-                        </button>
-                        <button type="button" className="cube-game__button cube-game__button--primary" onClick={scramble}>
-                            Scramble
-                        </button>
-                    </div>
-                </div>
-                <p className="cube-game__help">
-                    Use the notation buttons to rotate faces (U = Up, D = Down, etc.). Drag or use the arrow keys to inspect the cube.
-                    <kbd>Home</kbd> resets the view and <kbd>End</kbd> randomizes it.
-                </p>
-            </footer>
         </section>
     );
 };
-
-
 
 export default CubeChallenge;
