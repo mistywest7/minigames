@@ -586,7 +586,7 @@ const CubeChallenge: React.FC = () => {
         [rotation.x, rotation.y],
     );
 
-    const faceColors = useMemo(
+    const faceColors = useMemo<Record<FaceKey, string[]>>(
         () => ({
             F: getFaceStickers(cubeState, 'F'),
             B: getFaceStickers(cubeState, 'B'),
