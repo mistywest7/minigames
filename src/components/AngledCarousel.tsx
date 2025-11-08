@@ -3,10 +3,10 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-import sigmavideoone from '../../public/video/v1.mp4';
-import skibidivideoone from '../../public/video/v2.mp4';
-import brrbrrvideoone from '../../public/video/v3.mp4';
-import tungtungtungtungtungtungtungvideo from '../../public/video/v4.mp4';
+const SIGMA_VIDEO = '/video/v1.mp4';
+const SKIBIDI_VIDEO = '/video/v2.mp4';
+const BRRBRR_VIDEO = '/video/v3.mp4';
+const TUNGTUNG_VIDEO = '/video/v4.mp4';
 
 interface CarouselItem {
     video: string;
@@ -28,14 +28,14 @@ interface AngledCarouselProps {
 }
 
 const DEFAULT_ITEMS: CarouselItem[] = [
-    { video: sigmavideoone, title: 'Sigma Video', text: 'This is the first carousel video.' },
+    { video: SIGMA_VIDEO, title: 'Sigma Video', text: 'This is the first carousel video.' },
     {
-        video: skibidivideoone,
+        video: SKIBIDI_VIDEO,
         title: 'Skibidi Video',
         text: 'Cube Challenge – Take your puzzle-solving skills to the next level with this advanced Rubik’s Cube game. Designed for seasoned cubers and daring beginners alike, it offers complex patterns, time challenges, and mind-bending twists that push your spatial reasoning and memory to the limit. Solve increasingly difficult scrambles, unlock new cube sizes and shapes, and test yourself against the clock—or challenge friends in head-to-head puzzle duels. With sleek animations, customizable cube designs, and an immersive 3D interface, this is more than just a cube… it’s a mental battleground.',
     },
-    { video: brrbrrvideoone, title: 'Brr Brr Video', text: 'This is the third carousel video.' },
-    { video: tungtungtungtungtungtungtungvideo, title: 'Tung Tung Tung', text: 'This is the fourth carousel video.' },
+    { video: BRRBRR_VIDEO, title: 'Brr Brr Video', text: 'This is the third carousel video.' },
+    { video: TUNGTUNG_VIDEO, title: 'Tung Tung Tung', text: 'This is the fourth carousel video.' },
 ];
 
 const toRad = (deg: number) => (deg * Math.PI) / 180;
