@@ -116,6 +116,44 @@
     transition: transform 0.12s ease-out;
 }
 
+.cube-game__face-shell {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    --face-rotation: 0deg;
+    --face-rotation-duration: 0ms;
+    transition: transform var(--face-rotation-duration) cubic-bezier(0.22, 0.61, 0.36, 1);
+    will-change: transform;
+}
+
+.cube-game__face-shell--animating {
+    pointer-events: none;
+}
+
+.cube-game__face-shell--front {
+    transform: rotateZ(var(--face-rotation)) translateZ(calc(var(--cube-size) / 2));
+}
+
+.cube-game__face-shell--back {
+    transform: rotateZ(var(--face-rotation)) rotateY(180deg) translateZ(calc(var(--cube-size) / 2));
+}
+
+.cube-game__face-shell--left {
+    transform: rotateX(var(--face-rotation)) rotateY(-90deg) translateZ(calc(var(--cube-size) / 2));
+}
+
+.cube-game__face-shell--right {
+    transform: rotateX(var(--face-rotation)) rotateY(90deg) translateZ(calc(var(--cube-size) / 2));
+}
+
+.cube-game__face-shell--top {
+    transform: rotateY(var(--face-rotation)) rotateX(90deg) translateZ(calc(var(--cube-size) / 2));
+}
+
+.cube-game__face-shell--bottom {
+    transform: rotateY(var(--face-rotation)) rotateX(-90deg) translateZ(calc(var(--cube-size) / 2));
+}
+
 .cube-game__face {
     position: absolute;
     inset: 0;
@@ -129,14 +167,14 @@
     border-radius: 18px;
     box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.35);
     touch-action: none;
+    transition: box-shadow 0.2s ease;
 }
 
-.cube-game__face--front { transform: translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--back { transform: rotateY(180deg) translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--left { transform: rotateY(-90deg) translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--right { transform: rotateY(90deg) translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--top { transform: rotateX(90deg) translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--bottom { transform: rotateX(-90deg) translateZ(calc(var(--cube-size) / 2)); }
+.cube-game__face--animating::after {
+    opacity: 0.8;
+    background: radial-gradient(circle at 50% 50%, rgba(15, 98, 254, 0.35), rgba(15, 98, 254, 0));
+    box-shadow: inset 0 0 30px rgba(15, 98, 254, 0.45);
+}
 
 .cube-game__sticker {
     border-radius: 8px;
@@ -359,13 +397,6 @@
 .cube-game__face--intent-double .cube-game__sticker {
     box-shadow: inset 0 0 6px rgba(92, 57, 165, 0.55), 0 6px 12px rgba(161, 109, 255, 0.28);
 }
-
-.cube-game__face--front { transform: translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--back { transform: rotateY(180deg) translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--left { transform: rotateY(-90deg) translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--right { transform: rotateY(90deg) translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--top { transform: rotateX(90deg) translateZ(calc(var(--cube-size) / 2)); }
-.cube-game__face--bottom { transform: rotateX(-90deg) translateZ(calc(var(--cube-size) / 2)); }
 
 .cube-game__sticker {
     border-radius: 8px;

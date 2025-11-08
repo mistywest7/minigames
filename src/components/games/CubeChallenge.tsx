@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import './CubeChallenge.css';
 
 type Coordinate = -1 | 0 | 1;
@@ -119,13 +119,13 @@ const FACE_CONFIGS: Record<FaceKey, FaceConfig> = {
     },
 };
 
-const FACE_RENDER_CONFIG: Array<{ face: FaceKey; className: string; label: string }> = [
-    { face: 'F', className: 'cube-game__face cube-game__face--front', label: 'Front' },
-    { face: 'B', className: 'cube-game__face cube-game__face--back', label: 'Back' },
-    { face: 'L', className: 'cube-game__face cube-game__face--left', label: 'Left' },
-    { face: 'R', className: 'cube-game__face cube-game__face--right', label: 'Right' },
-    { face: 'U', className: 'cube-game__face cube-game__face--top', label: 'Top' },
-    { face: 'D', className: 'cube-game__face cube-game__face--bottom', label: 'Bottom' },
+const FACE_RENDER_CONFIG: Array<{ face: FaceKey; shellClassName: string; label: string }> = [
+    { face: 'F', shellClassName: 'cube-game__face-shell--front', label: 'Front' },
+    { face: 'B', shellClassName: 'cube-game__face-shell--back', label: 'Back' },
+    { face: 'L', shellClassName: 'cube-game__face-shell--left', label: 'Left' },
+    { face: 'R', shellClassName: 'cube-game__face-shell--right', label: 'Right' },
+    { face: 'U', shellClassName: 'cube-game__face-shell--top', label: 'Top' },
+    { face: 'D', shellClassName: 'cube-game__face-shell--bottom', label: 'Bottom' },
 ];
 
 interface MoveSpec {
@@ -227,6 +227,8 @@ const applySingleMove = (stickers: CubeSticker[], move: Move): CubeSticker[] => 
 
 const applyMoves = (stickers: CubeSticker[], moves: Move[]): CubeSticker[] =>
     moves.reduce<CubeSticker[]>((current, move) => applySingleMove(current, move), stickers);
+
+const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 
 const generateScramble = (length: number): Move[] => {
     const scramble: Move[] = [];
@@ -544,9 +546,40 @@ const DraggableMoveControl: React.FC<DraggableMoveControlProps> = ({ face, moves
 const CubeChallenge: React.FC = () => {
     const [rotation, setRotation] = useState<Rotation>(() => ({ x: -30, y: 35 }));
     const [cubeState, setCubeState] = useState<CubeSticker[]>(() => createInitialCubeState());
+    const [autoRotateEnabled, setAutoRotateEnabled] = useState(true);
+    const autoRotateFrameRef = useRef<number | null>(null);
     const stageDragOrigin = useRef<{ x: number; y: number } | null>(null);
+    const [isStageDragging, setIsStageDragging] = useState(false);
     const faceDragState = useRef<(PointerDragState & { face: FaceKey }) | null>(null);
     const [activeFaceDrag, setActiveFaceDrag] = useState<{ face: FaceKey; intent: DragIntent } | null>(null);
+    const [moveQueue, setMoveQueue] = useState<Move[]>([]);
+    const [activeAnimation, setActiveAnimation] = useState<{
+        face: FaceKey;
+        angle: number;
+        duration: number;
+        move: Move;
+    } | null>(null);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+            return;
+        }
+
+        const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+        if (mediaQuery.matches) {
+            setAutoRotateEnabled(false);
+        }
+
+        const handleChange = (event: MediaQueryListEvent) => {
+            if (event.matches) {
+                setAutoRotateEnabled(false);
+            }
+        };
+
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, []);
 
     const handleStagePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         if ((event.target as HTMLElement).closest('[data-face]')) {
@@ -555,6 +588,7 @@ const CubeChallenge: React.FC = () => {
 
         stageDragOrigin.current = { x: event.clientX, y: event.clientY };
         event.currentTarget.setPointerCapture(event.pointerId);
+        setIsStageDragging(true);
     }, []);
 
     const handleStagePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
@@ -574,6 +608,7 @@ const CubeChallenge: React.FC = () => {
 
     const handleStagePointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
         stageDragOrigin.current = null;
+        setIsStageDragging(false);
         if (event.currentTarget.hasPointerCapture(event.pointerId)) {
             event.currentTarget.releasePointerCapture(event.pointerId);
         }
@@ -607,6 +642,47 @@ const CubeChallenge: React.FC = () => {
         });
     }, []);
 
+    useEffect(() => {
+        if (!autoRotateEnabled || isStageDragging) {
+            if (autoRotateFrameRef.current !== null) {
+                cancelAnimationFrame(autoRotateFrameRef.current);
+                autoRotateFrameRef.current = null;
+            }
+            return () => {};
+        }
+
+        let lastTimestamp: number | null = null;
+
+        const tick = (timestamp: number) => {
+            if (lastTimestamp !== null) {
+                const delta = timestamp - lastTimestamp;
+                setRotation((prev) => {
+                    const nextX = clamp(prev.x + delta * 0.003, -70, 70);
+                    const nextY = prev.y + delta * 0.02;
+                    return { x: nextX, y: nextY };
+                });
+            }
+            lastTimestamp = timestamp;
+            autoRotateFrameRef.current = requestAnimationFrame(tick);
+        };
+
+        autoRotateFrameRef.current = requestAnimationFrame(tick);
+
+        return () => {
+            if (autoRotateFrameRef.current !== null) {
+                cancelAnimationFrame(autoRotateFrameRef.current);
+                autoRotateFrameRef.current = null;
+            }
+        };
+    }, [autoRotateEnabled, isStageDragging]);
+
+    useEffect(() => () => {
+        if (autoRotateFrameRef.current !== null) {
+            cancelAnimationFrame(autoRotateFrameRef.current);
+            autoRotateFrameRef.current = null;
+        }
+    }, []);
+
     const rotationStyle = useMemo(
         () => ({
             transform: `translate3d(-50%, -50%, 0) rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`,
@@ -627,17 +703,55 @@ const CubeChallenge: React.FC = () => {
     );
 
     const handleMove = useCallback((move: Move) => {
-        setCubeState((prev) => applyMoves(prev, [move]));
+        setMoveQueue((prev) => [...prev, move]);
     }, []);
 
     const scramble = useCallback(() => {
         const sequence = generateScramble(SCRAMBLE_LENGTH);
-        setCubeState((prev) => applyMoves(prev, sequence));
+        setMoveQueue((prev) => [...prev, ...sequence]);
     }, []);
 
     const reset = useCallback(() => {
         setCubeState(createInitialCubeState());
+        setMoveQueue([]);
+        setActiveAnimation(null);
     }, []);
+
+    useEffect(() => {
+        if (activeAnimation || moveQueue.length === 0) {
+            return;
+        }
+
+        const nextMove = moveQueue[0];
+        const base = nextMove[0] as BaseMove;
+        const spec = MOVE_SPECS[base];
+        const isPrime = nextMove.includes("'");
+        const isDouble = nextMove.includes('2');
+        const direction = isPrime ? invertDirection(spec.clockwiseDirection) : spec.clockwiseDirection;
+        const angle = direction * (isDouble ? 180 : 90);
+        const duration = isDouble ? 620 : 420;
+
+        setActiveAnimation({
+            face: base,
+            angle,
+            duration,
+            move: nextMove,
+        });
+    }, [activeAnimation, moveQueue]);
+
+    useEffect(() => {
+        if (!activeAnimation) {
+            return;
+        }
+
+        const timer = window.setTimeout(() => {
+            setCubeState((prev) => applyMoves(prev, [activeAnimation.move]));
+            setMoveQueue((prev) => prev.slice(1));
+            setActiveAnimation(null);
+        }, activeAnimation.duration);
+
+        return () => window.clearTimeout(timer);
+    }, [activeAnimation]);
 
     const finishFaceDrag = useCallback(
         (face: FaceKey, target: HTMLDivElement, pointerId: number, commit: boolean) => {
@@ -772,6 +886,15 @@ const CubeChallenge: React.FC = () => {
                     <button
                         type="button"
                         className="cube-game__stage-button"
+                        onClick={() => setAutoRotateEnabled((prev) => !prev)}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        aria-pressed={autoRotateEnabled}
+                    >
+                        {autoRotateEnabled ? 'Pause rotation' : 'Resume rotation'}
+                    </button>
+                    <button
+                        type="button"
+                        className="cube-game__stage-button"
                         onClick={reset}
                         onPointerDown={(event) => event.stopPropagation()}
                     >
@@ -788,31 +911,49 @@ const CubeChallenge: React.FC = () => {
                 </div>
                 <div className="cube-game__scene">
                     <div className="cube-game__cube" style={rotationStyle}>
-                        {FACE_RENDER_CONFIG.map(({ face, className, label }) => {
+                        {FACE_RENDER_CONFIG.map(({ face, shellClassName, label }) => {
                             const isActive = activeFaceDrag?.face === face;
                             const intent = isActive ? activeFaceDrag?.intent ?? null : null;
                             const faceClassName = [
-                                className,
+                                'cube-game__face',
                                 'cube-game__face--interactive',
                                 isActive ? 'cube-game__face--dragging' : null,
                                 intent ? `cube-game__face--intent-${intent}` : null,
+                                activeAnimation?.face === face ? 'cube-game__face--animating' : null,
                             ]
                                 .filter((value): value is string => Boolean(value))
                                 .join(' ');
 
+                            const wrapperClassName = [
+                                shellClassName,
+                                'cube-game__face-shell',
+                                activeAnimation?.face === face ? 'cube-game__face-shell--animating' : null,
+                            ]
+                                .filter((value): value is string => Boolean(value))
+                                .join(' ');
+
+                            const animationStyle =
+                                activeAnimation?.face === face
+                                    ? ({
+                                          '--face-rotation': `${activeAnimation.angle}deg`,
+                                          '--face-rotation-duration': `${activeAnimation.duration}ms`,
+                                      } as React.CSSProperties)
+                                    : undefined;
+
                             return (
-                                <CubeFace
-                                    key={face}
-                                    face={face}
-                                    className={faceClassName}
-                                    colors={faceColors[face]}
-                                    label={label}
-                                    onPointerDown={handleFacePointerDown}
-                                    onPointerMove={handleFacePointerMove}
-                                    onPointerUp={handleFacePointerUp}
-                                    onPointerCancel={handleFacePointerCancel}
-                                    onKeyDown={handleFaceKeyDown}
-                                />
+                                <div key={face} className={wrapperClassName} style={animationStyle}>
+                                    <CubeFace
+                                        face={face}
+                                        className={faceClassName}
+                                        colors={faceColors[face]}
+                                        label={label}
+                                        onPointerDown={handleFacePointerDown}
+                                        onPointerMove={handleFacePointerMove}
+                                        onPointerUp={handleFacePointerUp}
+                                        onPointerCancel={handleFacePointerCancel}
+                                        onKeyDown={handleFaceKeyDown}
+                                    />
+                                </div>
                             );
                         })}
                     </div>
