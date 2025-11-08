@@ -30,6 +30,12 @@ interface CubeSticker {
     normal: Vector3;
 }
 
+interface Cubelet {
+    id: string;
+    position: Vector3;
+    stickers: CubeSticker[];
+}
+
 const ROTATION_STEP = 15;
 const DRAG_SENSITIVITY = 0.4;
 const SCRAMBLE_LENGTH = 25;
@@ -208,6 +214,56 @@ const rotateLayer = (stickers: CubeSticker[], axis: Axis, layer: Coordinate, dir
         };
     });
 
+const getCubeletKey = (position: Vector3): string => `${position.x},${position.y},${position.z}`;
+
+const createCubelets = (stickers: CubeSticker[]): Cubelet[] => {
+    const cubeletMap = new Map<string, Cubelet>();
+
+    stickers.forEach((sticker) => {
+        const key = getCubeletKey(sticker.position);
+        const existing = cubeletMap.get(key);
+
+        if (existing) {
+            existing.stickers.push(sticker);
+        } else {
+            cubeletMap.set(key, {
+                id: key,
+                position: { ...sticker.position },
+                stickers: [sticker],
+            });
+        }
+    });
+
+    return Array.from(cubeletMap.values())
+        .map((cubelet) => ({
+            ...cubelet,
+            stickers: cubelet.stickers.slice().sort((a, b) => a.id.localeCompare(b.id)),
+        }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+};
+
+const NORMAL_CLASS_MAP: Record<string, string> = {
+    '0,0,1': 'cube-game__cubelet-face--front',
+    '0,0,-1': 'cube-game__cubelet-face--back',
+    '1,0,0': 'cube-game__cubelet-face--right',
+    '-1,0,0': 'cube-game__cubelet-face--left',
+    '0,1,0': 'cube-game__cubelet-face--up',
+    '0,-1,0': 'cube-game__cubelet-face--down',
+};
+
+const NORMAL_FACE_MAP: Record<string, FaceKey> = {
+    '0,0,1': 'F',
+    '0,0,-1': 'B',
+    '1,0,0': 'R',
+    '-1,0,0': 'L',
+    '0,1,0': 'U',
+    '0,-1,0': 'D',
+};
+
+const getCubeletFaceClass = (normal: Vector3): string => NORMAL_CLASS_MAP[getCubeletKey(normal)] ?? '';
+
+const getFaceFromNormal = (normal: Vector3): FaceKey | null => NORMAL_FACE_MAP[getCubeletKey(normal)] ?? null;
+
 const invertDirection = (direction: 1 | -1): 1 | -1 => (direction === 1 ? -1 : 1);
 
 const applySingleMove = (stickers: CubeSticker[], move: Move): CubeSticker[] => {
@@ -277,27 +333,6 @@ const createInitialCubeState = (): CubeSticker[] => {
     return stickers;
 };
 
-const getFaceStickers = (stickers: CubeSticker[], face: FaceKey): string[] => {
-    const config = FACE_CONFIGS[face];
-    const colors: string[] = Array.from({ length: 9 }, () => config.color);
-
-    stickers.forEach((sticker) => {
-        if (
-            sticker.normal.x === config.normal.x &&
-            sticker.normal.y === config.normal.y &&
-            sticker.normal.z === config.normal.z
-        ) {
-            const rowIndex = config.rowCoords.indexOf(sticker.position[config.rowAxis]);
-            const colIndex = config.colCoords.indexOf(sticker.position[config.colAxis]);
-            if (rowIndex >= 0 && colIndex >= 0) {
-                colors[rowIndex * 3 + colIndex] = sticker.color;
-            }
-        }
-    });
-
-    return colors;
-};
-
 const scrambleRotation = (): Rotation => ({
     x: Math.random() * 180 - 90,
     y: Math.random() * 360 - 180,
@@ -306,7 +341,6 @@ const scrambleRotation = (): Rotation => ({
 interface CubeFaceProps {
     face: FaceKey;
     className: string;
-    colors: string[];
     label: string;
     onPointerDown: (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => void;
     onPointerMove: (face: FaceKey, event: React.PointerEvent<HTMLDivElement>) => void;
@@ -318,7 +352,6 @@ interface CubeFaceProps {
 const CubeFace: React.FC<CubeFaceProps> = ({
     face,
     className,
-    colors,
     label,
     onPointerDown,
     onPointerMove,
@@ -339,9 +372,7 @@ const CubeFace: React.FC<CubeFaceProps> = ({
         onPointerCancel={(event) => onPointerCancel(face, event)}
         onKeyDown={(event) => onKeyDown(face, event)}
     >
-        {colors.map((color, index) => (
-            <span key={index} className="cube-game__sticker" style={{ backgroundColor: color }} />
-        ))}
+        <span className="cube-game__face-overlay" />
     </div>
 );
 
@@ -555,6 +586,8 @@ const CubeChallenge: React.FC = () => {
     const [moveQueue, setMoveQueue] = useState<Move[]>([]);
     const [activeAnimation, setActiveAnimation] = useState<{
         face: FaceKey;
+        axis: Axis;
+        layer: Coordinate;
         angle: number;
         duration: number;
         move: Move;
@@ -690,17 +723,21 @@ const CubeChallenge: React.FC = () => {
         [rotation.x, rotation.y],
     );
 
-    const faceColors = useMemo<Record<FaceKey, string[]>>(
-        () => ({
-            F: getFaceStickers(cubeState, 'F'),
-            B: getFaceStickers(cubeState, 'B'),
-            L: getFaceStickers(cubeState, 'L'),
-            R: getFaceStickers(cubeState, 'R'),
-            U: getFaceStickers(cubeState, 'U'),
-            D: getFaceStickers(cubeState, 'D'),
-        }),
-        [cubeState],
-    );
+    const cubelets = useMemo(() => createCubelets(cubeState), [cubeState]);
+
+    const activeLayerCubelets = useMemo(() => {
+        if (!activeAnimation) {
+            return null;
+        }
+
+        const ids = new Set<string>();
+        cubelets.forEach((cubelet) => {
+            if (cubelet.position[activeAnimation.axis] === activeAnimation.layer) {
+                ids.add(cubelet.id);
+            }
+        });
+        return ids;
+    }, [activeAnimation, cubelets]);
 
     const handleMove = useCallback((move: Move) => {
         setMoveQueue((prev) => [...prev, move]);
@@ -733,6 +770,8 @@ const CubeChallenge: React.FC = () => {
 
         setActiveAnimation({
             face: base,
+            axis: spec.axis,
+            layer: spec.layer,
             angle,
             duration,
             move: nextMove,
@@ -911,15 +950,78 @@ const CubeChallenge: React.FC = () => {
                 </div>
                 <div className="cube-game__scene">
                     <div className="cube-game__cube" style={rotationStyle}>
+                        {cubelets.map((cubelet) => {
+                            const translateX = `calc(${cubelet.position.x} * var(--cubelet-spacing))`;
+                            const translateY = `calc(${cubelet.position.y * -1} * var(--cubelet-spacing))`;
+                            const translateZ = `calc(${cubelet.position.z} * var(--cubelet-spacing))`;
+                            const cubeletStyle: React.CSSProperties = {
+                                transform: `translate3d(-50%, -50%, 0) translate3d(${translateX}, ${translateY}, ${translateZ})`,
+                            };
+
+                            const isLayerAnimating = Boolean(activeAnimation) && Boolean(activeLayerCubelets?.has(cubelet.id));
+                            const innerClassName = [
+                                'cube-game__cubelet-inner',
+                                isLayerAnimating && activeAnimation
+                                    ? `cube-game__cubelet-inner--rotating-${activeAnimation.axis}`
+                                    : null,
+                            ]
+                                .filter((value): value is string => Boolean(value))
+                                .join(' ');
+
+                            const innerStyle =
+                                isLayerAnimating && activeAnimation
+                                    ? ({
+                                          '--cubelet-rotation': `${activeAnimation.angle}deg`,
+                                          '--cubelet-rotation-duration': `${activeAnimation.duration}ms`,
+                                      } as React.CSSProperties)
+                                    : undefined;
+
+                            return (
+                                <div key={cubelet.id} className="cube-game__cubelet" style={cubeletStyle}>
+                                    <div className={innerClassName} style={innerStyle}>
+                                        {cubelet.stickers.map((sticker) => {
+                                            const orientationClass = getCubeletFaceClass(sticker.normal);
+                                            const stickerFace = getFaceFromNormal(sticker.normal);
+                                            const isActiveSticker =
+                                                stickerFace !== null && activeFaceDrag?.face === stickerFace;
+                                            const intentClass =
+                                                isActiveSticker && activeFaceDrag?.intent
+                                                    ? `cube-game__cubelet-sticker--intent-${activeFaceDrag.intent}`
+                                                    : null;
+                                            const animationFaceClass =
+                                                activeAnimation?.face && stickerFace === activeAnimation.face
+                                                    ? 'cube-game__cubelet-sticker--animating'
+                                                    : null;
+                                            const stickerClassName = [
+                                                'cube-game__cubelet-sticker',
+                                                isActiveSticker ? 'cube-game__cubelet-sticker--active' : null,
+                                                intentClass,
+                                                animationFaceClass,
+                                            ]
+                                                .filter((value): value is string => Boolean(value))
+                                                .join(' ');
+
+                                            return (
+                                                <div
+                                                    key={sticker.id}
+                                                    className={`cube-game__cubelet-face ${orientationClass}`}
+                                                >
+                                                    <span
+                                                        className={stickerClassName}
+                                                        style={{ backgroundColor: sticker.color }}
+                                                    />
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            );
+                        })}
                         {FACE_RENDER_CONFIG.map(({ face, shellClassName, label }) => {
                             const isActive = activeFaceDrag?.face === face;
-                            const intent = isActive ? activeFaceDrag?.intent ?? null : null;
                             const faceClassName = [
                                 'cube-game__face',
-                                'cube-game__face--interactive',
                                 isActive ? 'cube-game__face--dragging' : null,
-                                intent ? `cube-game__face--intent-${intent}` : null,
-                                activeAnimation?.face === face ? 'cube-game__face--animating' : null,
                             ]
                                 .filter((value): value is string => Boolean(value))
                                 .join(' ');
@@ -945,7 +1047,6 @@ const CubeChallenge: React.FC = () => {
                                     <CubeFace
                                         face={face}
                                         className={faceClassName}
-                                        colors={faceColors[face]}
                                         label={label}
                                         onPointerDown={handleFacePointerDown}
                                         onPointerMove={handleFacePointerMove}
