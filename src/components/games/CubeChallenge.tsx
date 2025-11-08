@@ -119,6 +119,15 @@ const FACE_CONFIGS: Record<FaceKey, FaceConfig> = {
     },
 };
 
+const FACE_RENDER_CONFIG: Array<{ face: FaceKey; className: string; label: string }> = [
+    { face: 'F', className: 'cube-game__face cube-game__face--front', label: 'Front' },
+    { face: 'B', className: 'cube-game__face cube-game__face--back', label: 'Back' },
+    { face: 'L', className: 'cube-game__face cube-game__face--left', label: 'Left' },
+    { face: 'R', className: 'cube-game__face cube-game__face--right', label: 'Right' },
+    { face: 'U', className: 'cube-game__face cube-game__face--top', label: 'Top' },
+    { face: 'D', className: 'cube-game__face cube-game__face--bottom', label: 'Bottom' },
+];
+
 interface MoveSpec {
     axis: Axis;
     layer: Coordinate;
@@ -142,6 +151,14 @@ const MOVE_GROUPS: Array<{ face: BaseMove; moves: [Move, Move, Move] }> = [
     { face: 'R', moves: ['R', "R'", 'R2'] },
     { face: 'L', moves: ['L', "L'", 'L2'] },
 ];
+
+const FACE_MOVES: Record<BaseMove, [Move, Move, Move]> = MOVE_GROUPS.reduce(
+    (movesByFace, group) => {
+        movesByFace[group.face] = group.moves;
+        return movesByFace;
+    },
+    {} as Record<BaseMove, [Move, Move, Move]>,
+);
 
 const normalizeCoordinate = (value: number): Coordinate => {
     if (value > 0) {
@@ -331,6 +348,17 @@ interface DraggableMoveControlProps {
     moves: [Move, Move, Move];
     onMove: (move: Move) => void;
 }
+
+const formatMoveLabel = (move: Move): string => {
+    const face = move[0] as BaseMove;
+    if (move.includes('2')) {
+        return `${face} double turn`;
+    }
+    if (move.includes("'")) {
+        return `${face} counter-clockwise`;
+    }
+    return `${face} clockwise`;
+};
 
 const DraggableMoveControl: React.FC<DraggableMoveControlProps> = ({ face, moves, onMove }) => {
     const [clockwise, counterClockwise, doubleTurn] = moves;
